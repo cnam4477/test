@@ -435,7 +435,7 @@ task.spawn(function()
         task.wait(0.03)
     end
 end)
-task.wait(2)
+task.wait(2.5)
 shouldKeepAttacking1 = false
 teleportTo(pos2)
 
