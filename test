@@ -48,12 +48,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local TextChatService = game:GetService("TextChatService")
 local player = Players.LocalPlayer
+
 local function doReconnect()
-    pcall(function()
-        TeleportService:Teleport(game.PlaceId, player)
-    end)
+    pcall(function() TeleportService:Teleport(game.PlaceId, player) end)
 end
+
 local function sendWebhook(title, description, color, fields)
     local embed = {
         title = title, description = description, color = color or 3066993,
@@ -66,83 +67,66 @@ local function sendWebhook(title, description, color, fields)
         request({ Url = DISCORD_WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ embeds = {embed} }) })
     end)
 end
-local function sendDinoSystemWebhook(title, description, color, fields)
-    local embed = {
-        title = title, description = description, color = color or 16711680,
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
-        footer = { text = "Dino System Chat Logger" },
-        author = { name = player.Name, icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png" },
-        fields = fields or {}
-    }
-    pcall(function()
-        request({ Url = DINO_SYSTEM_WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ embeds = {embed} }) })
+
+local function stripHtml(text)
+    return text:gsub("<[^>]+>", ""):gsub("</[^>]+>", ""):gsub("&lt;","<"):gsub("&gt;",">"):gsub("&amp;","&")
+end
+
+local function setupSystemChatLogger()
+    local myDisplayName = player.DisplayName
+    local myUsername = player.Name
+
+    local function onSystemMessage(msg)
+        if msg.TextSource ~= nil then return end
+        local raw = msg.Text or ""
+        local clean = stripHtml(raw)
+        local lower = clean:lower()
+
+        if not (string.find(lower, myDisplayName:lower()) or string.find(lower, myUsername:lower())) then return end
+        if not string.find(lower, "has obtained") then return end
+
+        local itemName = clean:match("has obtained (.+)") or ""
+        itemName = itemName:gsub("%s+$", "")
+
+        local embed = {
+            title = "🎁  ได้รับไอเทมใหม่!",
+            color = 16766720,
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
+            thumbnail = {
+                url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
+            },
+            footer = { text = "Item Logger  •  Angel & Demon Solver" },
+            fields = {
+                { name = "👤  ผู้เล่น", value = myDisplayName .. "  `(" .. myUsername .. ")`", inline = true },
+                { name = "🎀  ไอเทม", value = itemName ~= "" and ("**" .. itemName .. "**") or "ไม่ทราบชื่อ", inline = true },
+                { name = "🕐  เวลา", value = os.date("%H:%M:%S", os.time()), inline = true },
+                { name = "📍  Server", value = "`" .. tostring(game.PlaceId) .. "`", inline = true },
+                { name = "👥  ผู้เล่นในเซิร์ฟ", value = tostring(#Players:GetPlayers()) .. " คน", inline = true },
+                { name = "💬  System Message", value = "```" .. clean .. "```", inline = false },
+            }
+        }
+        pcall(function()
+            request({ Url = DINO_SYSTEM_WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ embeds = {embed} }) })
+        end)
+    end
+
+    task.spawn(function()
+        local textChannels = TextChatService:FindFirstChild("TextChannels")
+        if textChannels then
+            for _, ch in pairs(textChannels:GetChildren()) do
+                if ch:IsA("TextChannel") then
+                    ch.MessageReceived:Connect(onSystemMessage)
+                end
+            end
+        end
+        TextChatService.MessageReceived:Connect(onSystemMessage)
     end)
 end
-local function setupDinoSystemChatLogger()
-    local StarterGui = game:GetService("StarterGui")
-    StarterGui:SetCore("ChatMakeSystemMessage", { Text=""; Color=Color3.new(1,1,1); Font=Enum.Font.Gotham; FontSize=Enum.FontSize.Size18 })
-    local function hookChatMessages()
-        local ok, chatService = pcall(function() return require(game:GetService("Chat").ClientChatModules.ChatSettings) end)
-        if ok then
-            local orig = chatService.MessagePosted
-            if orig then
-                chatService.MessagePosted = function(msg, ch)
-                    if msg and type(msg) == "string" then
-                        local lm = string.lower(msg)
-                        if string.find(lm,"dino") and string.find(lm,"loweicala5") and string.find(lm,"has obtained") then
-                            sendDinoSystemWebhook("🎁 Dino ได้รับไอเทม","ตรวจพบ System Message",65280,{
-                                {name="👤 ผู้เล่น",value="Dino (Loweicala5)",inline=true},
-                                {name="🕐 เวลา",value=os.date("%H:%M:%S",os.time()),inline=true},
-                                {name="📍 Server",value=tostring(game.PlaceId),inline=true},
-                                {name="💬 System Message",value="```"..msg.."```",inline=false}
-                            })
-                        end
-                    end
-                    if orig then return orig(msg, ch) end
-                end
-            end
-        end
-    end
-    local function setupAlternativeChatLogger()
-        local TextChatService = game:GetService("TextChatService")
-        if TextChatService then
-            TextChatService.MessageReceived:Connect(function(message)
-                if message and message.Text then
-                    local lm = string.lower(message.Text)
-                    if string.find(lm,"dino") and string.find(lm,"loweicala5") and string.find(lm,"has obtained") then
-                        sendDinoSystemWebhook("🎁 Dino ได้รับไอเทม (TextChat)","ตรวจพบ System Message",65280,{
-                            {name="👤 ผู้เล่น",value="Dino (Loweicala5)",inline=true},
-                            {name="🕐 เวลา",value=os.date("%H:%M:%S",os.time()),inline=true},
-                            {name="📍 Server",value=tostring(game.PlaceId),inline=true},
-                            {name="💬 System Message",value="```"..message.Text.."```",inline=false}
-                        })
-                    end
-                end
-            end)
-        end
-        local function onPlayerAdded(p)
-            if p.DisplayName == "Dino" and p.Name == "Loweicala5" then
-                p.Chatted:Connect(function(msg)
-                    if string.find(string.lower(msg),"has obtained") then
-                        sendDinoSystemWebhook("🎁 Dino Chat ได้รับไอเทม","ตรวจพบ Dino พิมพ์",16776960,{
-                            {name="👤 ผู้เล่น",value="Dino (Loweicala5)",inline=true},
-                            {name="🕐 เวลา",value=os.date("%H:%M:%S",os.time()),inline=true},
-                            {name="📍 Server",value=tostring(game.PlaceId),inline=true},
-                            {name="💬 ข้อความ",value="```"..msg.."```",inline=false}
-                        })
-                    end
-                end)
-            end
-        end
-        for _, p in pairs(Players:GetPlayers()) do onPlayerAdded(p) end
-        Players.PlayerAdded:Connect(onPlayerAdded)
-    end
-    hookChatMessages()
-    setupAlternativeChatLogger()
-end
+
 repeat task.wait() until game:IsLoaded() and player.Character
 local startTime = tick()
-setupDinoSystemChatLogger()
+setupSystemChatLogger()
+
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
@@ -156,6 +140,7 @@ pcall(function()
         end
     end
 end)
+
 local function cleanWorkspace()
     for _, v in pairs(workspace:GetDescendants()) do
         pcall(function()
@@ -174,6 +159,7 @@ local function cleanWorkspace()
     end
 end
 cleanWorkspace()
+
 task.spawn(function()
     while true do
         if tick() - startTime > 180 then
@@ -187,12 +173,15 @@ task.spawn(function()
         task.wait(5)
     end
 end)
+
 sendWebhook("🚀 เริ่มรันสคริป","เริ่มต้นการทำงานของ Angel & Demon Auto Solver",3066993,{
     {name="🎮 Game ID",value=tostring(game.PlaceId),inline=true},
     {name="🕐 เวลาเริ่ม",value=os.date("%H:%M:%S",os.time()),inline=true},
     {name="👥 ผู้เล่นในเซิร์ฟเวอร์",value=tostring(#Players:GetPlayers()).." คน",inline=true}
 })
+
 if game.PlaceId ~= 128836084126595 then return end
+
 local WHITELIST = { "Loweicala5", "Chifuyu_1657" }
 local function isWhitelisted(name)
     for _, n in pairs(WHITELIST) do if n == name then return true end end
@@ -218,9 +207,11 @@ task.spawn(function()
         task.wait(3)
     end
 end)
+
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 local humanoid = character:WaitForChild("Humanoid")
+
 local function setSpeed(speed)
     local char = player.Character
     if char then
@@ -228,6 +219,7 @@ local function setSpeed(speed)
         if hum then hum.WalkSpeed = speed end
     end
 end
+
 local function walkTo(targetPos, arrivalDist, timeout)
     arrivalDist = arrivalDist or 5
     timeout = timeout or 60
@@ -243,6 +235,7 @@ local function walkTo(targetPos, arrivalDist, timeout)
         task.wait(0.1)
     end
 end
+
 local function getObjectPosition(object)
     if not object then return nil end
     if object:IsA("BasePart") then return object.Position end
@@ -256,19 +249,15 @@ local function getObjectPosition(object)
     end
     return nil
 end
+
 local function getObjectPos(obj) return getObjectPosition(obj) end
+
 local function teleportTo(position)
     local char = player.Character or player.CharacterAdded:Wait()
     char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
     wait(0.3)
 end
-local function tweenToPosition(position, duration)
-    local char = player.Character or player.CharacterAdded:Wait()
-    local root = char:WaitForChild("HumanoidRootPart")
-    local tween = TweenService:Create(root, TweenInfo.new(duration or 1.5, Enum.EasingStyle.Linear), {CFrame = CFrame.new(position)})
-    tween:Play()
-    tween.Completed:Wait()
-end
+
 local function disableAllProximityPrompts()
     for _, child in pairs(workspace:GetDescendants()) do
         if child:IsA("ProximityPrompt") then
@@ -277,15 +266,18 @@ local function disableAllProximityPrompts()
         end
     end
 end
+
 local function comparePosition(pos1, pos2, tolerance)
     return (pos1 - pos2).Magnitude <= (tolerance or 0.1)
 end
+
 local function getPositionIndex(symbolPosition, targetPositions)
     for i, targetPos in pairs(targetPositions) do
         if comparePosition(symbolPosition, targetPos) then return i end
     end
     return nil
 end
+
 local function hasZeroTransparency(symbol)
     if symbol.Transparency ~= nil and symbol.Transparency == 0 then return true end
     for _, child in pairs(symbol:GetChildren()) do
@@ -293,6 +285,7 @@ local function hasZeroTransparency(symbol)
     end
     return false
 end
+
 local function getMeshId(symbol)
     if symbol:IsA("MeshPart") and symbol.MeshId ~= "" then return symbol.MeshId end
     local sm = symbol:FindFirstChildOfClass("SpecialMesh")
@@ -304,6 +297,7 @@ local function getMeshId(symbol)
     end
     return nil
 end
+
 local function fireRemotePrompt(prompt)
     prompt.Enabled = true
     prompt.MaxActivationDistance = 50
@@ -313,6 +307,7 @@ local function fireRemotePrompt(prompt)
     prompt.Enabled = false
     prompt.MaxActivationDistance = 0
 end
+
 local function executePuzzleSolution(puzzleType, validSymbolsData)
     local cubeBasePath, statueBasePath, meshIdToCube
     if puzzleType == "Angel" then
@@ -356,6 +351,7 @@ local function executePuzzleSolution(puzzleType, validSymbolsData)
         task.wait(0.5)
     end
 end
+
 local function checkSymbols(symbolType, targetPositions)
     local symbolsPath
     if symbolType == "Angel" then symbolsPath = workspace.World.Puzzles.SymbolPositions.Angels
@@ -396,6 +392,7 @@ local function checkSymbols(symbolType, targetPositions)
     end
     return "", {}
 end
+
 task.spawn(function()
     local blockRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Block")
     while true do
@@ -405,16 +402,19 @@ task.spawn(function()
         task.wait(0.05)
     end
 end)
+
 local pos1 = Vector3.new(-9320.513672, 762.131470, 7109.515137)
 local pos2 = Vector3.new(-9545.842773, 762.131470, 6757.503418)
 local pos3 = Vector3.new(-10015.326172, 762.131409, 6020.146484)
 local tweenTarget = Vector3.new(-9511, 762, 6720)
+
 character = player.Character or player.CharacterAdded:Wait()
 character:WaitForChild("HumanoidRootPart")
 humanoid = character:WaitForChild("Humanoid")
 setSpeed(34)
 task.wait(7)
 teleportTo(pos1)
+
 local shouldKeepAttacking1 = true
 task.spawn(function()
     while shouldKeepAttacking1 do
@@ -429,6 +429,7 @@ end)
 task.wait(2)
 shouldKeepAttacking1 = false
 teleportTo(pos2)
+
 local shouldKeepAttacking2 = true
 task.spawn(function()
     while shouldKeepAttacking2 do
@@ -448,22 +449,26 @@ VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 task.wait(0.1)
 teleportTo(pos3)
 setSpeed(34)
+
 local gateExit = workspace.World.Gates.Exit
 local exitPos = getObjectPos(gateExit)
 if exitPos then walkTo(exitPos, 5, 2) end
 disableAllProximityPrompts()
 wait(2)
+
 local angelSolution, angelValidSymbols = checkSymbols("Angel", angelPositions)
 if angelSolution ~= "" and #angelValidSymbols > 0 then
     wait(2)
     executePuzzleSolution("Angel", angelValidSymbols)
 end
 wait(1)
+
 local demonSolution, demonValidSymbols = checkSymbols("Demon", demonPositions)
 if demonSolution ~= "" and #demonValidSymbols > 0 then
     wait(2)
     executePuzzleSolution("Demon", demonValidSymbols)
 end
+
 if (angelSolution == "" or #angelValidSymbols == 0) and (demonSolution == "" or #demonValidSymbols == 0) then
     sendWebhook("⚠️ ไม่เจอ Cube","วาปกลับเริ่มใหม่",16776960,{})
     task.wait(0.6)
@@ -496,12 +501,14 @@ if (angelSolution == "" or #angelValidSymbols == 0) and (demonSolution == "" or 
         executePuzzleSolution("Demon", demonValidSymbols)
     end
 end
+
 wait(3)
 character = player.Character or player.CharacterAdded:Wait()
 humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 humanoid = character:WaitForChild("Humanoid")
 teleportTo(Vector3.new(-10105, 762, 6018))
 humanoid.WalkSpeed = 100
+
 local bossTargetPos = Vector3.new(-10372, 823, 6016)
 local shouldKeepAttackingWalk = true
 task.spawn(function()
@@ -525,6 +532,7 @@ task.spawn(function()
         task.wait(2)
     end
 end)
+
 local walkStart = tick()
 while tick() - walkStart < 30 do
     local char = player.Character
@@ -638,16 +646,12 @@ task.spawn(function()
         if dHRP and humanoidRootPart then
             humanoidRootPart.CFrame = CFrame.new(dHRP.Position + Vector3.new(0, 8, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
         end
-        local args = {
-            buffer.fromstring(">\000\001\000\001\000\002\00011\001")
-        }
+        local args = { buffer.fromstring(">\000\001\000\001\000\002\00011\001") }
         byteNetRemote:FireServer(unpack(args))
         task.wait(0.1)
     end
     task.wait(1)
-    local args = {
-        buffer.fromstring("%\000")
-    }
+    local args = { buffer.fromstring("%\000") }
     byteNetRemote:FireServer(unpack(args))
 end)
 
