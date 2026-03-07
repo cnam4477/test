@@ -1,0 +1,662 @@
+local DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1419318469488283721/5LsaS2iySAGtEDq5Fw8bhhZYOsDFmp6sANVazJUBNcUinRjhAALLJU5DUEiRacRFO4Bc"
+local DINO_SYSTEM_WEBHOOK_URL = "https://discord.com/api/webhooks/1419634164323581973/5AlaVe0IV9cUPJJs1R2zTNT6xMDQWQPpzyxkB3SA-_kpayAl6xfU-AuQKrUp-StA2dCf"
+local angelPositions = {
+    Vector3.new(-10073.541, 789.507019, 5946.53613),
+    Vector3.new(-10065.1406, 789.507019, 5946.53613),
+    Vector3.new(-10056.6611, 789.507019, 5946.56494),
+    Vector3.new(-10047.9932, 789.507019, 5946.56494)
+}
+local demonPositions = {
+    Vector3.new(-10048.1396, 789.40741, 6094.13525),
+    Vector3.new(-10056.54, 789.40741, 6094.13525),
+    Vector3.new(-10064.8398, 789.332581, 6094.13525),
+    Vector3.new(-10073.541, 789.232605, 6094.13525)
+}
+local meshIdMapping = {
+    ["rbxassetid://111541969831247"] = "3d",
+    ["rbxassetid://123172503946042"] = "w",
+    ["rbxassetid://81535996191361"] = "x",
+    ["rbxassetid://118990644391937"] = "T",
+    ["rbxassetid://126049157908903"] = "=",
+    ["rbxassetid://90789780562124"] = "8",
+    ["rbxassetid://137203212239060"] = "4",
+    ["rbxassetid://132582674166568"] = "3"
+}
+local meshIdToAngelCube = {
+    ["rbxassetid://111541969831247"] = "Cube1",
+    ["rbxassetid://123172503946042"] = "Cube2",
+    ["rbxassetid://81535996191361"] = "Cube3",
+    ["rbxassetid://118990644391937"] = "Cube4",
+    ["rbxassetid://126049157908903"] = "Cube5",
+    ["rbxassetid://90789780562124"] = "Cube6",
+    ["rbxassetid://137203212239060"] = "Cube7",
+    ["rbxassetid://132582674166568"] = "Cube8"
+}
+local meshIdToDemonCube = {
+    ["rbxassetid://111541969831247"] = "Cube1",
+    ["rbxassetid://123172503946042"] = "Cube2",
+    ["rbxassetid://81535996191361"] = "Cube3",
+    ["rbxassetid://118990644391937"] = "Cube4",
+    ["rbxassetid://126049157908903"] = "Cube5",
+    ["rbxassetid://90789780562124"] = "Cube6",
+    ["rbxassetid://137203212239060"] = "Cube7",
+    ["rbxassetid://132582674166568"] = "Cube8"
+}
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+local function doReconnect()
+    pcall(function()
+        TeleportService:Teleport(game.PlaceId, player)
+    end)
+end
+local function sendWebhook(title, description, color, fields)
+    local embed = {
+        title = title, description = description, color = color or 3066993,
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
+        footer = { text = "Angel & Demon Auto Solver" },
+        author = { name = player.Name, icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png" },
+        fields = fields or {}
+    }
+    pcall(function()
+        request({ Url = DISCORD_WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ embeds = {embed} }) })
+    end)
+end
+local function sendDinoSystemWebhook(title, description, color, fields)
+    local embed = {
+        title = title, description = description, color = color or 16711680,
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
+        footer = { text = "Dino System Chat Logger" },
+        author = { name = player.Name, icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png" },
+        fields = fields or {}
+    }
+    pcall(function()
+        request({ Url = DINO_SYSTEM_WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ embeds = {embed} }) })
+    end)
+end
+local function setupDinoSystemChatLogger()
+    local StarterGui = game:GetService("StarterGui")
+    StarterGui:SetCore("ChatMakeSystemMessage", { Text=""; Color=Color3.new(1,1,1); Font=Enum.Font.Gotham; FontSize=Enum.FontSize.Size18 })
+    local function hookChatMessages()
+        local ok, chatService = pcall(function() return require(game:GetService("Chat").ClientChatModules.ChatSettings) end)
+        if ok then
+            local orig = chatService.MessagePosted
+            if orig then
+                chatService.MessagePosted = function(msg, ch)
+                    if msg and type(msg) == "string" then
+                        local lm = string.lower(msg)
+                        if string.find(lm,"dino") and string.find(lm,"loweicala5") and string.find(lm,"has obtained") then
+                            sendDinoSystemWebhook("🎁 Dino ได้รับไอเทม","ตรวจพบ System Message",65280,{
+                                {name="👤 ผู้เล่น",value="Dino (Loweicala5)",inline=true},
+                                {name="🕐 เวลา",value=os.date("%H:%M:%S",os.time()),inline=true},
+                                {name="📍 Server",value=tostring(game.PlaceId),inline=true},
+                                {name="💬 System Message",value="```"..msg.."```",inline=false}
+                            })
+                        end
+                    end
+                    if orig then return orig(msg, ch) end
+                end
+            end
+        end
+    end
+    local function setupAlternativeChatLogger()
+        local TextChatService = game:GetService("TextChatService")
+        if TextChatService then
+            TextChatService.MessageReceived:Connect(function(message)
+                if message and message.Text then
+                    local lm = string.lower(message.Text)
+                    if string.find(lm,"dino") and string.find(lm,"loweicala5") and string.find(lm,"has obtained") then
+                        sendDinoSystemWebhook("🎁 Dino ได้รับไอเทม (TextChat)","ตรวจพบ System Message",65280,{
+                            {name="👤 ผู้เล่น",value="Dino (Loweicala5)",inline=true},
+                            {name="🕐 เวลา",value=os.date("%H:%M:%S",os.time()),inline=true},
+                            {name="📍 Server",value=tostring(game.PlaceId),inline=true},
+                            {name="💬 System Message",value="```"..message.Text.."```",inline=false}
+                        })
+                    end
+                end
+            end)
+        end
+        local function onPlayerAdded(p)
+            if p.DisplayName == "Dino" and p.Name == "Loweicala5" then
+                p.Chatted:Connect(function(msg)
+                    if string.find(string.lower(msg),"has obtained") then
+                        sendDinoSystemWebhook("🎁 Dino Chat ได้รับไอเทม","ตรวจพบ Dino พิมพ์",16776960,{
+                            {name="👤 ผู้เล่น",value="Dino (Loweicala5)",inline=true},
+                            {name="🕐 เวลา",value=os.date("%H:%M:%S",os.time()),inline=true},
+                            {name="📍 Server",value=tostring(game.PlaceId),inline=true},
+                            {name="💬 ข้อความ",value="```"..msg.."```",inline=false}
+                        })
+                    end
+                end)
+            end
+        end
+        for _, p in pairs(Players:GetPlayers()) do onPlayerAdded(p) end
+        Players.PlayerAdded:Connect(onPlayerAdded)
+    end
+    hookChatMessages()
+    setupAlternativeChatLogger()
+end
+repeat task.wait() until game:IsLoaded() and player.Character
+local startTime = tick()
+setupDinoSystemChatLogger()
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+pcall(function()
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 9e9
+    Lighting.Brightness = 2
+    for _, obj in pairs(Lighting:GetChildren()) do
+        if obj:IsA("BlurEffect") or obj:IsA("SunRaysEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("BloomEffect") or obj:IsA("DepthOfFieldEffect") then
+            obj.Enabled = false
+        end
+    end
+end)
+local function cleanWorkspace()
+    for _, v in pairs(workspace:GetDescendants()) do
+        pcall(function()
+            local fullName = v:GetFullName()
+            if string.find(fullName, "AngelCubes") or string.find(fullName, "DemonCubes") or string.find(fullName, "SymbolPositions") or string.find(fullName, "AngelStatues") or string.find(fullName, "DemonStatues") then return end
+            if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
+            if v:IsA("SpecialMesh") then v.TextureId = "" end
+            if v:IsA("BasePart") and not v:IsDescendantOf(player.Character or game) then
+                v.Material = Enum.Material.SmoothPlastic
+                v.CastShadow = false
+                v.ReceiveAge = 0
+            end
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then v.Enabled = false end
+            if v:IsA("SelectionBox") or v:IsA("SelectionSphere") or v:IsA("BoxHandleAdornment") then v:Destroy() end
+        end)
+    end
+end
+cleanWorkspace()
+task.spawn(function()
+    while true do
+        if tick() - startTime > 180 then
+            sendWebhook("⏰ เกิน 3 นาที","Hop เซิฟใหม่",16776960,{
+                {name="⏰ เวลาที่ใช้",value=string.format("%.1f วินาที", tick()-startTime),inline=true}
+            })
+            task.wait(1)
+            doReconnect()
+            break
+        end
+        task.wait(5)
+    end
+end)
+sendWebhook("🚀 เริ่มรันสคริป","เริ่มต้นการทำงานของ Angel & Demon Auto Solver",3066993,{
+    {name="🎮 Game ID",value=tostring(game.PlaceId),inline=true},
+    {name="🕐 เวลาเริ่ม",value=os.date("%H:%M:%S",os.time()),inline=true},
+    {name="👥 ผู้เล่นในเซิร์ฟเวอร์",value=tostring(#Players:GetPlayers()).." คน",inline=true}
+})
+if game.PlaceId ~= 128836084126595 then return end
+local WHITELIST = { "Loweicala5", "Chifuyu_1657" }
+local function isWhitelisted(name)
+    for _, n in pairs(WHITELIST) do if n == name then return true end end
+    return false
+end
+task.spawn(function()
+    while true do
+        local nonWL = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if not isWhitelisted(p.Name) and p ~= player then table.insert(nonWL, p.Name) end
+        end
+        if #nonWL > 0 then
+            local names = {}
+            for _, p in pairs(Players:GetPlayers()) do table.insert(names, p.Name) end
+            sendWebhook("👥 พบคนนอก Whitelist","กำลัง Hop เซิฟใหม่",16711680,{
+                {name="คนที่ไม่อยู่ใน WL",value=table.concat(nonWL,", "),inline=false},
+                {name="ผู้เล่นทั้งหมด",value=table.concat(names,", "),inline=false}
+            })
+            task.wait(1)
+            doReconnect()
+            break
+        end
+        task.wait(3)
+    end
+end)
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+local function setSpeed(speed)
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hum then hum.WalkSpeed = speed end
+    end
+end
+local function walkTo(targetPos, arrivalDist, timeout)
+    arrivalDist = arrivalDist or 5
+    timeout = timeout or 60
+    local start = tick()
+    while tick() - start < timeout do
+        local char = player.Character
+        if not char then task.wait(0.1) continue end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if not root or not hum then task.wait(0.1) continue end
+        if (root.Position - targetPos).Magnitude <= arrivalDist then break end
+        hum:MoveTo(targetPos)
+        task.wait(0.1)
+    end
+end
+local function getObjectPosition(object)
+    if not object then return nil end
+    if object:IsA("BasePart") then return object.Position end
+    if object:IsA("Model") then
+        if object.PrimaryPart then return object.PrimaryPart.Position end
+        local ok, cf = pcall(function() return object:GetBoundingBox() end)
+        if ok and cf then return cf.Position end
+        for _, c in pairs(object:GetDescendants()) do
+            if c:IsA("BasePart") then return c.Position end
+        end
+    end
+    return nil
+end
+local function getObjectPos(obj) return getObjectPosition(obj) end
+local function teleportTo(position)
+    local char = player.Character or player.CharacterAdded:Wait()
+    char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
+    wait(0.3)
+end
+local function tweenToPosition(position, duration)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart")
+    local tween = TweenService:Create(root, TweenInfo.new(duration or 1.5, Enum.EasingStyle.Linear), {CFrame = CFrame.new(position)})
+    tween:Play()
+    tween.Completed:Wait()
+end
+local function disableAllProximityPrompts()
+    for _, child in pairs(workspace:GetDescendants()) do
+        if child:IsA("ProximityPrompt") then
+            child.Enabled = false
+            child.MaxActivationDistance = 0
+        end
+    end
+end
+local function comparePosition(pos1, pos2, tolerance)
+    return (pos1 - pos2).Magnitude <= (tolerance or 0.1)
+end
+local function getPositionIndex(symbolPosition, targetPositions)
+    for i, targetPos in pairs(targetPositions) do
+        if comparePosition(symbolPosition, targetPos) then return i end
+    end
+    return nil
+end
+local function hasZeroTransparency(symbol)
+    if symbol.Transparency ~= nil and symbol.Transparency == 0 then return true end
+    for _, child in pairs(symbol:GetChildren()) do
+        if (child:IsA("BasePart") or child:IsA("MeshPart")) and child.Transparency == 0 then return true end
+    end
+    return false
+end
+local function getMeshId(symbol)
+    if symbol:IsA("MeshPart") and symbol.MeshId ~= "" then return symbol.MeshId end
+    local sm = symbol:FindFirstChildOfClass("SpecialMesh")
+    if sm and sm.MeshId ~= "" then return sm.MeshId end
+    for _, child in pairs(symbol:GetChildren()) do
+        if child:IsA("MeshPart") and child.MeshId ~= "" then return child.MeshId end
+        local csm = child:FindFirstChildOfClass("SpecialMesh")
+        if csm and csm.MeshId ~= "" then return csm.MeshId end
+    end
+    return nil
+end
+local function fireRemotePrompt(prompt)
+    prompt.Enabled = true
+    prompt.MaxActivationDistance = 50
+    task.wait(0.1)
+    fireproximityprompt(prompt)
+    task.wait(0.1)
+    prompt.Enabled = false
+    prompt.MaxActivationDistance = 0
+end
+local function executePuzzleSolution(puzzleType, validSymbolsData)
+    local cubeBasePath, statueBasePath, meshIdToCube
+    if puzzleType == "Angel" then
+        cubeBasePath = workspace.World.Puzzles.AngelCubes
+        statueBasePath = workspace.World.Puzzles.AngelStatues
+        meshIdToCube = meshIdToAngelCube
+    elseif puzzleType == "Demon" then
+        cubeBasePath = workspace.World.Puzzles.DemonCubes
+        statueBasePath = workspace.World.Puzzles.DemonStatues
+        meshIdToCube = meshIdToDemonCube
+    end
+    for _, symbolData in pairs(validSymbolsData) do
+        local positionIndex = symbolData.positionIndex
+        local cubeName = meshIdToCube[symbolData.meshId]
+        if not cubeName then continue end
+        local cubeObject = cubeBasePath:FindFirstChild(cubeName)
+        if not cubeObject then
+            local t = 0
+            repeat task.wait(0.5) t = t + 1 cubeObject = cubeBasePath:FindFirstChild(cubeName) until cubeObject or t >= 20
+        end
+        if not cubeObject then continue end
+        local cubePosition = getObjectPosition(cubeObject)
+        if not cubePosition then continue end
+        humanoidRootPart.CFrame = CFrame.new(cubePosition + Vector3.new(0, 3, 0))
+        task.wait(0.4)
+        local cubePrompt = cubeObject:FindFirstChild("ProximityPrompt")
+        if not cubePrompt then continue end
+        task.wait(0.6)
+        fireRemotePrompt(cubePrompt)
+        local statueName = "Statue" .. positionIndex
+        local statueObject = statueBasePath:FindFirstChild(statueName)
+        if not statueObject then continue end
+        local statuePosition = getObjectPosition(statueObject)
+        if not statuePosition then continue end
+        humanoidRootPart.CFrame = CFrame.new(statuePosition + Vector3.new(0, 3, 0))
+        task.wait(0.4)
+        local statuePrompt = statueObject:FindFirstChild("ProximityPrompt")
+        if not statuePrompt then continue end
+        task.wait(0.6)
+        fireRemotePrompt(statuePrompt)
+        task.wait(0.5)
+    end
+end
+local function checkSymbols(symbolType, targetPositions)
+    local symbolsPath
+    if symbolType == "Angel" then symbolsPath = workspace.World.Puzzles.SymbolPositions.Angels
+    elseif symbolType == "Demon" then symbolsPath = workspace.World.Puzzles.SymbolPositions.Demons end
+    if not symbolsPath then return "", {} end
+    local symbolsToCheck = {}
+    for _, child in pairs(symbolsPath:GetChildren()) do
+        if child:IsA("BasePart") or child:IsA("Model") then table.insert(symbolsToCheck, child) end
+    end
+    for _, sName in pairs({"Symbol1","Symbol2","Symbol3","Symbol4","Symbol8"}) do
+        local s = symbolsPath:FindFirstChild(sName)
+        if s then
+            local found = false
+            for _, e in pairs(symbolsToCheck) do if e == s then found = true break end end
+            if not found then table.insert(symbolsToCheck, s) end
+        end
+    end
+    local validSymbols = {}
+    for _, symbol in pairs(symbolsToCheck) do
+        if symbol then
+            local symbolPosition = getObjectPosition(symbol)
+            if symbolPosition then
+                local positionIndex = getPositionIndex(symbolPosition, targetPositions)
+                local isVisible = hasZeroTransparency(symbol)
+                local meshId = getMeshId(symbol)
+                local mappedValue = meshId and meshIdMapping[meshId]
+                if positionIndex and isVisible and mappedValue then
+                    table.insert(validSymbols, { positionIndex = positionIndex, meshId = meshId, value = mappedValue })
+                end
+            end
+        end
+    end
+    if #validSymbols > 0 then
+        table.sort(validSymbols, function(a, b) return a.positionIndex < b.positionIndex end)
+        local result = ""
+        for _, sd in pairs(validSymbols) do result = result .. sd.value end
+        return result, validSymbols
+    end
+    return "", {}
+end
+task.spawn(function()
+    local blockRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Block")
+    while true do
+        blockRemote:FireServer("Start")
+        task.wait(0.1)
+        blockRemote:FireServer("Stop")
+        task.wait(0.05)
+    end
+end)
+local pos1 = Vector3.new(-9320.513672, 762.131470, 7109.515137)
+local pos2 = Vector3.new(-9545.842773, 762.131470, 6757.503418)
+local pos3 = Vector3.new(-10015.326172, 762.131409, 6020.146484)
+local tweenTarget = Vector3.new(-9511, 762, 6720)
+character = player.Character or player.CharacterAdded:Wait()
+character:WaitForChild("HumanoidRootPart")
+humanoid = character:WaitForChild("Humanoid")
+setSpeed(34)
+task.wait(7)
+teleportTo(pos1)
+local shouldKeepAttacking1 = true
+task.spawn(function()
+    while shouldKeepAttacking1 do
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        task.wait(0.03)
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        task.wait(0.03)
+    end
+end)
+task.wait(2)
+shouldKeepAttacking1 = false
+teleportTo(pos2)
+local shouldKeepAttacking2 = true
+task.spawn(function()
+    while shouldKeepAttacking2 do
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        task.wait(0.03)
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        task.wait(0.03)
+    end
+end)
+task.wait(2)
+shouldKeepAttacking2 = false
+walkTo(tweenTarget, 5, 30)
+VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+task.wait(0.1)
+teleportTo(pos3)
+setSpeed(34)
+local gateExit = workspace.World.Gates.Exit
+local exitPos = getObjectPos(gateExit)
+if exitPos then walkTo(exitPos, 5, 2) end
+disableAllProximityPrompts()
+wait(2)
+local angelSolution, angelValidSymbols = checkSymbols("Angel", angelPositions)
+if angelSolution ~= "" and #angelValidSymbols > 0 then
+    wait(2)
+    executePuzzleSolution("Angel", angelValidSymbols)
+end
+wait(1)
+local demonSolution, demonValidSymbols = checkSymbols("Demon", demonPositions)
+if demonSolution ~= "" and #demonValidSymbols > 0 then
+    wait(2)
+    executePuzzleSolution("Demon", demonValidSymbols)
+end
+if (angelSolution == "" or #angelValidSymbols == 0) and (demonSolution == "" or #demonValidSymbols == 0) then
+    sendWebhook("⚠️ ไม่เจอ Cube","วาปกลับเริ่มใหม่",16776960,{})
+    task.wait(0.6)
+    teleportTo(pos1)
+    task.wait(0.6)
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    task.wait(0.6)
+    teleportTo(pos2)
+    task.wait(0.6)
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    task.wait(0.6)
+    teleportTo(pos3)
+    setSpeed(34)
+    local gateExit2 = workspace.World.Gates.Exit
+    local exitPos2 = getObjectPos(gateExit2)
+    if exitPos2 then walkTo(exitPos2, 5, 2) end
+    disableAllProximityPrompts()
+    wait(2)
+    angelSolution, angelValidSymbols = checkSymbols("Angel", angelPositions)
+    if angelSolution ~= "" and #angelValidSymbols > 0 then
+        wait(2)
+        executePuzzleSolution("Angel", angelValidSymbols)
+    end
+    wait(1)
+    demonSolution, demonValidSymbols = checkSymbols("Demon", demonPositions)
+    if demonSolution ~= "" and #demonValidSymbols > 0 then
+        wait(2)
+        executePuzzleSolution("Demon", demonValidSymbols)
+    end
+end
+wait(3)
+character = player.Character or player.CharacterAdded:Wait()
+humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+humanoid = character:WaitForChild("Humanoid")
+teleportTo(Vector3.new(-10105, 762, 6018))
+humanoid.WalkSpeed = 100
+local bossTargetPos = Vector3.new(-10372, 823, 6016)
+local shouldKeepAttackingWalk = true
+task.spawn(function()
+    while shouldKeepAttackingWalk do
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.X, false, game)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.X, false, game)
+        task.wait(0.05)
+    end
+end)
+task.spawn(function()
+    while shouldKeepAttackingWalk do
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        task.wait(1.5)
+    end
+end)
+task.spawn(function()
+    while shouldKeepAttackingWalk do
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        task.wait(2)
+    end
+end)
+local walkStart = tick()
+while tick() - walkStart < 30 do
+    local char = player.Character
+    if not char then task.wait(0.1) continue end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    if not root or not hum then task.wait(0.1) continue end
+    if (root.Position - bossTargetPos).Magnitude <= 8 then
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        break
+    end
+    hum:MoveTo(bossTargetPos)
+    task.wait(0.15)
+end
+shouldKeepAttackingWalk = false
+humanoid.WalkSpeed = 16
+
+local function walkToBoss()
+    character = player.Character or player.CharacterAdded:Wait()
+    humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+    teleportTo(Vector3.new(-10105, 762, 6018))
+    humanoid.WalkSpeed = 100
+    local walkAttacking = true
+    task.spawn(function()
+        while walkAttacking do
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.X, false, game)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.X, false, game)
+            task.wait(0.05)
+        end
+    end)
+    task.spawn(function()
+        while walkAttacking do
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+            task.wait(1.5)
+        end
+    end)
+    task.spawn(function()
+        while walkAttacking do
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+            task.wait(2)
+        end
+    end)
+    local ws = tick()
+    while tick() - ws < 30 do
+        local char = player.Character
+        if not char then task.wait(0.15) continue end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if not root or not hum then task.wait(0.15) continue end
+        local d = workspace:FindFirstChild("SkeletalDragon", true)
+        if d then
+            walkAttacking = false
+            humanoid.WalkSpeed = 16
+            return d
+        end
+        if (root.Position - bossTargetPos).Magnitude <= 8 then break end
+        hum:MoveTo(bossTargetPos)
+        task.wait(0.15)
+    end
+    walkAttacking = false
+    humanoid.WalkSpeed = 16
+    return nil
+end
+
+local function findDragonWithRetry()
+    local d = workspace:FindFirstChild("SkeletalDragon", true)
+    if d then return d end
+    local waitStart = tick()
+    while tick() - waitStart < 8 do
+        task.wait(0.5)
+        d = workspace:FindFirstChild("SkeletalDragon", true)
+        if d then return d end
+    end
+    return nil
+end
+
+character = player.Character or player.CharacterAdded:Wait()
+humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local dragon = walkToBoss()
+if not dragon then dragon = findDragonWithRetry() end
+if not dragon then
+    sendWebhook("🐲 ไม่เจอมังกรรอบแรก","กำลังลองใหม่...",16776960,{})
+    local dragon2 = walkToBoss()
+    if dragon2 then dragon = dragon2 else dragon = findDragonWithRetry() end
+end
+if not dragon then
+    sendWebhook("🐲 ไม่พบมังกร 2 รอบ","Hop เซิฟใหม่",16711680,{
+        {name="⏰ เวลาที่ใช้",value=string.format("%.1f วินาที",tick()-startTime),inline=true}
+    })
+    task.wait(1)
+    doReconnect()
+    return
+end
+
+local dragonHumanoid = dragon:FindFirstChildWhichIsA("Humanoid")
+if not dragonHumanoid then dragonHumanoid = dragon:WaitForChild("Humanoid", 10) end
+if not dragonHumanoid then doReconnect() return end
+
+local byteNetRemote = ReplicatedStorage:WaitForChild("ByteNetReliable")
+
+task.spawn(function()
+    while true do
+        local dHum = dragon:FindFirstChildWhichIsA("Humanoid")
+        if not dHum or dHum.Health <= 0 then break end
+        local dHRP = dragon:FindFirstChild("HumanoidRootPart")
+        if dHRP and humanoidRootPart then
+            humanoidRootPart.CFrame = CFrame.new(dHRP.Position + Vector3.new(0, 8, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
+        end
+        local args = {
+            buffer.fromstring(">\000\001\000\001\000\002\00011\001")
+        }
+        byteNetRemote:FireServer(unpack(args))
+        task.wait(0.1)
+    end
+    task.wait(1)
+    local args = {
+        buffer.fromstring("%\000")
+    }
+    byteNetRemote:FireServer(unpack(args))
+end)
+
+sendWebhook("✅ สคริปทำงานเสร็จสิ้น","Angel & Demon Auto Solver เสร็จสิ้น",65280,{
+    {name="⏰ เวลาที่ใช้ทั้งหมด",value=string.format("%.1f วินาที",tick()-startTime),inline=true},
+    {name="🟡 Angel Puzzle",value="✅ เสร็จสิ้น",inline=true},
+    {name="🔴 Demon Puzzle",value="✅ เสร็จสิ้น",inline=true},
+    {name="🐲 Dragon Fight",value="✅ เสร็จสิ้น",inline=true},
+    {name="🕐 เวลาจบ",value=os.date("%H:%M:%S",os.time()),inline=true},
+    {name="📊 สถานะ",value="สำเร็จทั้งหมด",inline=true}
+})
+return { angel = true, demon = true }
