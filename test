@@ -169,8 +169,11 @@ local function cleanWorkspace()
 end
 cleanWorkspace()
 
+local dragonFound = false
+
 task.spawn(function()
     while true do
+        if dragonFound then break end
         if tick() - startTime > 180 then
             sendWebhook("⏰ เกิน 3 นาที","Hop เซิฟใหม่",16776960,{
                 {name="⏰ เวลาที่ใช้",value=string.format("%.1f วินาที", tick()-startTime),inline=true}
@@ -640,6 +643,8 @@ if not dragon then
     doReconnect()
     return
 end
+
+dragonFound = true
 
 local dragonHumanoid = dragon:FindFirstChildWhichIsA("Humanoid")
 if not dragonHumanoid then dragonHumanoid = dragon:WaitForChild("Humanoid", 10) end
