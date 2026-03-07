@@ -1,5 +1,5 @@
-local DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1419318469488283721/5LsaS2iySAGtEDq5Fw8bhhZYOsDFmp6sANVazJUBNcUinRjhAALLJU5DUEiRacRFO4Bc"
-local DINO_SYSTEM_WEBHOOK_URL = "https://discord.com/api/webhooks/1419634164323581973/5AlaVe0IV9cUPJJs1R2zTNT6xMDQWQPpzyxkB3SA-_kpayAl6xfU-AuQKrUp-StA2dCf"
+local DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1479896669599432766/6000mAr3UQXoPRZOmPs0kQGYwRgwLzrSreagi798uuZgxluAQ1vx8TT5T_RCEfAbluSR"
+local DINO_SYSTEM_WEBHOOK_URL = "https://discord.com/api/webhooks/1479896805578899517/dyF6xwiBCzFHKFDKeGpFvUFXupeU7xswPvU-f2ODjVaRdd6y0vrh4LT1ri4DQo0pUQ6y"
 local angelPositions = {
     Vector3.new(-10073.541, 789.507019, 5946.53613),
     Vector3.new(-10065.1406, 789.507019, 5946.53613),
