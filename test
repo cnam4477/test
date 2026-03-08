@@ -49,11 +49,15 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local TextChatService = game:GetService("TextChatService")
-local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
 local function doReconnect()
     pcall(function() TeleportService:Teleport(game.PlaceId, player) end)
+end
+
+local function fireRetry()
+    local args = { buffer.fromstring("&\000") }
+    ReplicatedStorage:WaitForChild("ByteNetReliable"):FireServer(unpack(args))
 end
 
 local function sendWebhook(title, description, color, fields)
@@ -119,10 +123,11 @@ repeat task.wait() until game:IsLoaded() and player.Character
 local startTime = tick()
 setupSystemChatLogger()
 
+-- remote m1 โจมตี รันตั้งแต่ต้น
 task.spawn(function()
-    local remote = game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable")
+    local remote = ReplicatedStorage:WaitForChild("ByteNetReliable")
     while true do
-        local args = { buffer.fromstring(">\000\001\000\001\000\002\00011\001") }
+        local args = { buffer.fromstring("\024\001\001\000\001\000\000\001\001a\002\00011") }
         pcall(function() remote:FireServer(unpack(args)) end)
         task.wait(0.1)
     end
@@ -312,77 +317,6 @@ local function fireRemotePrompt(prompt)
     prompt.MaxActivationDistance = 0
 end
 
-local function addHighlight(obj, fillColor, label)
-    for _, v in pairs(obj:GetChildren()) do
-        if v:IsA("Highlight") or v:IsA("BillboardGui") then v:Destroy() end
-    end
-    local hl = Instance.new("Highlight")
-    hl.FillColor = fillColor
-    hl.OutlineColor = fillColor
-    hl.FillTransparency = 0.4
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee = obj
-    hl.Parent = obj
-    local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 120, 0, 30)
-    bb.StudsOffset = Vector3.new(0, 4, 0)
-    bb.AlwaysOnTop = true
-    bb.Adornee = obj
-    bb.Parent = obj
-    local txt = Instance.new("TextLabel")
-    txt.Size = UDim2.new(1, 0, 1, 0)
-    txt.BackgroundTransparency = 1
-    txt.TextColor3 = Color3.fromRGB(255, 255, 255)
-    txt.TextStrokeTransparency = 0
-    txt.TextScaled = true
-    txt.Font = Enum.Font.GothamBold
-    txt.Text = label
-    txt.Parent = bb
-end
-
-local function espFromPuzzle(symbolType, targetPositions, cubeColor, statueColor)
-    local symbolsPath
-    if symbolType == "Angel" then
-        symbolsPath = workspace.World.Puzzles.SymbolPositions.Angels
-    else
-        symbolsPath = workspace.World.Puzzles.SymbolPositions.Demons
-    end
-    if not symbolsPath then return end
-    local cubeBasePath = symbolType == "Angel" and workspace.World.Puzzles.AngelCubes or workspace.World.Puzzles.DemonCubes
-    local statueBasePath = symbolType == "Angel" and workspace.World.Puzzles.AngelStatues or workspace.World.Puzzles.DemonStatues
-    local statueMap = {}
-    for _, symbol in pairs(symbolsPath:GetChildren()) do
-        if not (symbol:IsA("BasePart") or symbol:IsA("Model")) then continue end
-        if not hasZeroTransparency(symbol) then continue end
-        local pos = getObjectPosition(symbol)
-        if not pos then continue end
-        local posIndex = nil
-        for i, tp in pairs(targetPositions) do
-            if (pos - tp).Magnitude <= 0.1 then posIndex = i break end
-        end
-        if not posIndex then continue end
-        local meshId = getMeshId(symbol)
-        if not meshId then continue end
-        local symbolVal = meshIdMapping[meshId]
-        local cubeName = meshIdToAngelCube[meshId]
-        if not symbolVal or not cubeName then continue end
-        statueMap[posIndex] = { cubeName = cubeName, symbolVal = symbolVal }
-    end
-    for i = 1, 4 do
-        local data = statueMap[i]
-        if not data then continue end
-        local statueObj = statueBasePath:FindFirstChild("Statue" .. i)
-        local cubeObj = cubeBasePath:FindFirstChild(data.cubeName)
-        if statueObj then
-            addHighlight(statueObj, statueColor, "Statue" .. i .. " ← " .. data.cubeName)
-        end
-        if cubeObj then
-            addHighlight(cubeObj, cubeColor, data.cubeName .. " [" .. data.symbolVal .. "] → Statue" .. i)
-        end
-    end
-end
-
 local function executePuzzleSolution(puzzleType, validSymbolsData)
     local cubeBasePath, statueBasePath, meshIdToCube
     if puzzleType == "Angel" then
@@ -467,21 +401,6 @@ local function checkSymbols(symbolType, targetPositions)
     end
     return "", {}
 end
-
--- ESP กด U
-local espDebounce = false
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.U and not espDebounce then
-        espDebounce = true
-        print("✅ กด U — รัน ESP")
-        local args = { buffer.fromstring("\024\001\001\000\001\000\000\001\001\030\002\00012") }
-        ReplicatedStorage:WaitForChild("ByteNetReliable"):FireServer(unpack(args))
-        espFromPuzzle("Angel", angelPositions, Color3.fromRGB(0, 255, 100), Color3.fromRGB(0, 180, 255))
-        espFromPuzzle("Demon", demonPositions, Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 140, 0))
-        print("✅ ESP โหลดเสร็จ")
-        espDebounce = false
-    end
-end)
 
 task.spawn(function()
     local blockRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Block")
@@ -589,6 +508,14 @@ if (angelSolution == "" or #angelValidSymbols == 0) and (demonSolution == "" or 
     if demonSolution ~= "" and #demonValidSymbols > 0 then
         wait(2)
         executePuzzleSolution("Demon", demonValidSymbols)
+    end
+
+    -- ไม่เจอ cube รอบ 2 → ยิง retry
+    if (angelSolution == "" or #angelValidSymbols == 0) and (demonSolution == "" or #demonValidSymbols == 0) then
+        sendWebhook("⚠️ ไม่เจอ Cube รอบ 2","ยิง retry",16776960,{})
+        task.wait(1)
+        fireRetry()
+        return
     end
 end
 
@@ -714,11 +641,11 @@ if not dragon then
     if dragon2 then dragon = dragon2 else dragon = findDragonWithRetry() end
 end
 if not dragon then
-    sendWebhook("🐲 ไม่พบมังกร 2 รอบ","Hop เซิฟใหม่",16711680,{
+    sendWebhook("🐲 ไม่พบมังกร 2 รอบ","ยิง retry",16711680,{
         {name="⏰ เวลาที่ใช้",value=string.format("%.1f วินาที",tick()-startTime),inline=true}
     })
     task.wait(1)
-    doReconnect()
+    fireRetry()
     return
 end
 
@@ -726,7 +653,7 @@ dragonFound = true
 
 local dragonHumanoid = dragon:FindFirstChildWhichIsA("Humanoid")
 if not dragonHumanoid then dragonHumanoid = dragon:WaitForChild("Humanoid", 10) end
-if not dragonHumanoid then doReconnect() return end
+if not dragonHumanoid then fireRetry() return end
 
 local byteNetRemote = ReplicatedStorage:WaitForChild("ByteNetReliable")
 
@@ -742,9 +669,12 @@ task.spawn(function()
         byteNetRemote:FireServer(unpack(args))
         task.wait(0.1)
     end
+    -- dragon ตาย
     task.wait(1)
     local args = { buffer.fromstring("%\000") }
     byteNetRemote:FireServer(unpack(args))
+    task.wait(1)
+    fireRetry()
 end)
 
 sendWebhook("✅ สคริปทำงานเสร็จสิ้น","Angel & Demon Auto Solver เสร็จสิ้น",65280,{
