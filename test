@@ -605,8 +605,14 @@ local function walkToBoss()
         if not root or not hum then task.wait(0.15) continue end
         local d = workspace:FindFirstChild("SkeletalDragon", true)
         if d then
+            -- เจอมังกรระหว่างเดิน → หยุดทันที → วาปไปตีเลย
             walkAttacking = false
+            hum:Move(Vector3.new(0, 0, 0))
             humanoid.WalkSpeed = 16
+            local dHRP = d:FindFirstChild("HumanoidRootPart")
+            if dHRP then
+                humanoidRootPart.CFrame = CFrame.new(dHRP.Position + Vector3.new(0, 8, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
+            end
             return d
         end
         if (root.Position - bossTargetPos).Magnitude <= 8 then break end
