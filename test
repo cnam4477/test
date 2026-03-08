@@ -49,6 +49,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local TextChatService = game:GetService("TextChatService")
+local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
 local function doReconnect()
@@ -75,26 +76,20 @@ end
 local function setupSystemChatLogger()
     local myDisplayName = player.DisplayName
     local myUsername = player.Name
-
     local function onSystemMessage(msg)
         if msg.TextSource ~= nil then return end
         local raw = msg.Text or ""
         local clean = stripHtml(raw)
         local lower = clean:lower()
-
         if not (string.find(lower, myDisplayName:lower()) or string.find(lower, myUsername:lower())) then return end
         if not string.find(lower, "has obtained") then return end
-
         local itemName = clean:match("has obtained (.+)") or ""
         itemName = itemName:gsub("%s+$", "")
-
         local embed = {
             title = "🎁  ได้รับไอเทมใหม่!",
             color = 16766720,
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z"),
-            thumbnail = {
-                url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
-            },
+            thumbnail = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png" },
             footer = { text = "Item Logger  •  Angel & Demon Solver" },
             fields = {
                 { name = "👤  ผู้เล่น", value = myDisplayName .. "  `(" .. myUsername .. ")`", inline = true },
@@ -109,14 +104,11 @@ local function setupSystemChatLogger()
             request({ Url = DINO_SYSTEM_WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ embeds = {embed} }) })
         end)
     end
-
     task.spawn(function()
         local textChannels = TextChatService:FindFirstChild("TextChannels")
         if textChannels then
             for _, ch in pairs(textChannels:GetChildren()) do
-                if ch:IsA("TextChannel") then
-                    ch.MessageReceived:Connect(onSystemMessage)
-                end
+                if ch:IsA("TextChannel") then ch.MessageReceived:Connect(onSystemMessage) end
             end
         end
         TextChatService.MessageReceived:Connect(onSystemMessage)
@@ -320,6 +312,77 @@ local function fireRemotePrompt(prompt)
     prompt.MaxActivationDistance = 0
 end
 
+local function addHighlight(obj, fillColor, label)
+    for _, v in pairs(obj:GetChildren()) do
+        if v:IsA("Highlight") or v:IsA("BillboardGui") then v:Destroy() end
+    end
+    local hl = Instance.new("Highlight")
+    hl.FillColor = fillColor
+    hl.OutlineColor = fillColor
+    hl.FillTransparency = 0.4
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = obj
+    hl.Parent = obj
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.new(0, 120, 0, 30)
+    bb.StudsOffset = Vector3.new(0, 4, 0)
+    bb.AlwaysOnTop = true
+    bb.Adornee = obj
+    bb.Parent = obj
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+    txt.TextStrokeTransparency = 0
+    txt.TextScaled = true
+    txt.Font = Enum.Font.GothamBold
+    txt.Text = label
+    txt.Parent = bb
+end
+
+local function espFromPuzzle(symbolType, targetPositions, cubeColor, statueColor)
+    local symbolsPath
+    if symbolType == "Angel" then
+        symbolsPath = workspace.World.Puzzles.SymbolPositions.Angels
+    else
+        symbolsPath = workspace.World.Puzzles.SymbolPositions.Demons
+    end
+    if not symbolsPath then return end
+    local cubeBasePath = symbolType == "Angel" and workspace.World.Puzzles.AngelCubes or workspace.World.Puzzles.DemonCubes
+    local statueBasePath = symbolType == "Angel" and workspace.World.Puzzles.AngelStatues or workspace.World.Puzzles.DemonStatues
+    local statueMap = {}
+    for _, symbol in pairs(symbolsPath:GetChildren()) do
+        if not (symbol:IsA("BasePart") or symbol:IsA("Model")) then continue end
+        if not hasZeroTransparency(symbol) then continue end
+        local pos = getObjectPosition(symbol)
+        if not pos then continue end
+        local posIndex = nil
+        for i, tp in pairs(targetPositions) do
+            if (pos - tp).Magnitude <= 0.1 then posIndex = i break end
+        end
+        if not posIndex then continue end
+        local meshId = getMeshId(symbol)
+        if not meshId then continue end
+        local symbolVal = meshIdMapping[meshId]
+        local cubeName = meshIdToAngelCube[meshId]
+        if not symbolVal or not cubeName then continue end
+        statueMap[posIndex] = { cubeName = cubeName, symbolVal = symbolVal }
+    end
+    for i = 1, 4 do
+        local data = statueMap[i]
+        if not data then continue end
+        local statueObj = statueBasePath:FindFirstChild("Statue" .. i)
+        local cubeObj = cubeBasePath:FindFirstChild(data.cubeName)
+        if statueObj then
+            addHighlight(statueObj, statueColor, "Statue" .. i .. " ← " .. data.cubeName)
+        end
+        if cubeObj then
+            addHighlight(cubeObj, cubeColor, data.cubeName .. " [" .. data.symbolVal .. "] → Statue" .. i)
+        end
+    end
+end
+
 local function executePuzzleSolution(puzzleType, validSymbolsData)
     local cubeBasePath, statueBasePath, meshIdToCube
     if puzzleType == "Angel" then
@@ -404,6 +467,21 @@ local function checkSymbols(symbolType, targetPositions)
     end
     return "", {}
 end
+
+-- ESP กด U
+local espDebounce = false
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.U and not espDebounce then
+        espDebounce = true
+        print("✅ กด U — รัน ESP")
+        local args = { buffer.fromstring("\024\001\001\000\001\000\000\001\001\030\002\00012") }
+        ReplicatedStorage:WaitForChild("ByteNetReliable"):FireServer(unpack(args))
+        espFromPuzzle("Angel", angelPositions, Color3.fromRGB(0, 255, 100), Color3.fromRGB(0, 180, 255))
+        espFromPuzzle("Demon", demonPositions, Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 140, 0))
+        print("✅ ESP โหลดเสร็จ")
+        espDebounce = false
+    end
+end)
 
 task.spawn(function()
     local blockRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Block")
