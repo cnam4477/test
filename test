@@ -670,8 +670,11 @@ task.spawn(function()
         if dHRP and humanoidRootPart then
             humanoidRootPart.CFrame = CFrame.new(dHRP.Position + Vector3.new(0, 8, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
         end
-        local args = { buffer.fromstring(">\000\001\000\001\000\002\00011\001") }
-        byteNetRemote:FireServer(unpack(args))
+        -- ตีมังกร (args ใหม่)
+        local args = {
+            buffer.fromstring("\019\001\001\000\001\000\000\a\0013\002\00011")
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("ByteNetReliable"):FireServer(unpack(args))
         task.wait(0.1)
     end
     task.wait(1)
